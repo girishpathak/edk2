@@ -29,13 +29,10 @@
 #include "ScmiDxe.h"
 #include "ScmiPrivate.h"
 
-STATIC CONST SCMI_PROTOCOL_INIT_TABLE ProtocolInitFxns[MAX_PROTOCOLS] = {
-  { ScmiBaseProtocolInit },
-  { NULL },
-  { NULL },
-  { ScmiPerformanceProtocolInit },
-  { ScmiClockProtocolInit },
-  { NULL }
+STATIC CONST SCMI_PROTOCOL_ENTRY Protocols[] = {
+  { SCMI_PROTOCOL_ID_BASE, ScmiBaseProtocolInit },
+  { SCMI_PROTOCOL_ID_PERFORMANCE, ScmiPerformanceProtocolInit },
+  { SCMI_PROTOCOL_ID_CLOCK, ScmiClockProtocolInit }
 };
 
 /** ARM SCMI driver entry point function.
@@ -65,14 +62,14 @@ ArmScmiDxeEntryPoint (
   UINT32              Version;
   UINT32              Index;
   UINT32              NumProtocols;
-  UINT32              ProtocolNo;
+  UINT32              ProtocolIndex = 0;
   UINT8               SupportedList[MAX_PROTOCOLS];
   UINT32              SupportedListSize = sizeof (SupportedList);
 
-  ProtocolNo = SCMI_PROTOCOL_ID_BASE & PROTOCOL_ID_MASK;
-
   // Every SCMI implementation must implement the base protocol.
-  Status = ProtocolInitFxns[ProtocolNo].Init (&ImageHandle);
+  ASSERT (Protocols[ProtocolIndex].Id == SCMI_PROTOCOL_ID_BASE);
+
+  Status = Protocols[ProtocolIndex].InitFxn (&ImageHandle);
   if (EFI_ERROR (Status)) {
     ASSERT (FALSE);
     return Status;
@@ -123,13 +120,15 @@ ArmScmiDxeEntryPoint (
   }
 
   // Install supported protocol on ImageHandle.
-  for (Index = 0; Index < NumProtocols; Index++) {
-    ProtocolNo = SupportedList[Index] & PROTOCOL_ID_MASK;
-    if (ProtocolInitFxns[ProtocolNo].Init != NULL) {
-      Status = ProtocolInitFxns[ProtocolNo].Init (&ImageHandle);
-      if (EFI_ERROR (Status)) {
-        ASSERT (FALSE);
-        return Status;
+  while (++ProtocolIndex < ARRAY_SIZE (Protocols)) {
+    for (Index = 0; Index < NumProtocols; Index++) {
+      if (Protocols[ProtocolIndex].Id == SupportedList[Index]) {
+        Status = Protocols[ProtocolIndex].InitFxn (&ImageHandle);
+        if (EFI_ERROR (Status)) {
+          ASSERT (FALSE);
+          return Status;
+        }
+        break;
       }
     }
   }
