@@ -63,8 +63,8 @@ ArmScmiDxeEntryPoint (
   UINT32              Index;
   UINT32              NumProtocols;
   UINT32              ProtocolIndex = 0;
-  UINT8               SupportedList[MAX_PROTOCOLS];
-  UINT32              SupportedListSize = sizeof (SupportedList);
+  UINT8               *SupportedList;
+  UINT32              SupportedListSize;
 
   // Every SCMI implementation must implement the base protocol.
   ASSERT (Protocols[ProtocolIndex].Id == SCMI_PROTOCOL_ID_BASE);
@@ -108,13 +108,26 @@ ArmScmiDxeEntryPoint (
 
   ASSERT (NumProtocols != 0);
 
+  SupportedListSize = (NumProtocols * sizeof (*SupportedList));
+
+  Status = gBS->AllocatePool (
+                  EfiBootServicesData,
+                  SupportedListSize,
+                  (VOID**)&SupportedList
+                  );
+  if (EFI_ERROR (Status)) {
+    ASSERT (FALSE);
+    return Status;
+  }
+
   // Get the list of protocols supported by SCP firmware on the platform.
   Status = BaseProtocol->DiscoverListProtocols (
-             BaseProtocol,
-             &SupportedListSize,
-             SupportedList
-             );
+                           BaseProtocol,
+                           &SupportedListSize,
+                           SupportedList
+                           );
   if (EFI_ERROR (Status)) {
+    gBS->FreePool (SupportedList);
     ASSERT (FALSE);
     return Status;
   }
@@ -132,6 +145,8 @@ ArmScmiDxeEntryPoint (
       }
     }
   }
+
+  gBS->FreePool (SupportedList);
 
   return EFI_SUCCESS;
 }
